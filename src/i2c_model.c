@@ -80,8 +80,11 @@ static int command_start(I2CController *controller)
     }
 
     // Repeated START: end previous endpoint if address changed.
+    // Allows: START(0x50 W) → WRITE data → START(0x50 R) → READ (same address)
+    // but: START(0x50 W) → WRITE data → START(0x68 R) → READ (address change).
     if (controller->selected_endpoint != NULL &&
-        controller->selected_endpoint != endpoint) {
+        controller->selected_endpoint != endpoint) 
+    {
         i2c_endpoint_end(controller->selected_endpoint);
     }
 
@@ -106,7 +109,8 @@ static int command_stop(I2CController *controller)
 
     controller->state = I2C_STATE_STOP;
 
-    if (controller->selected_endpoint != NULL) {
+    if (controller->selected_endpoint != NULL)
+    {
         i2c_endpoint_end(controller->selected_endpoint); // clears expect_register_pointer
         controller->selected_endpoint = NULL;
     }
@@ -124,7 +128,8 @@ static int command_write(I2CController *controller)
     // Reject WRITE if no active transaction or if direction is READ.
     // Mixing directions without a repeated START is a firmware bug.
     if (!transaction_active(controller) ||
-        controller->current_direction != I2C_DIR_WRITE) {
+        controller->current_direction != I2C_DIR_WRITE)
+    {
         set_error(controller);
         return I2C_ERR_INVALID_SEQUENCE;
     }
@@ -148,7 +153,8 @@ static int command_read(I2CController *controller)
     // Reject READ if no active transaction or if direction is WRITE.
     // Firmware must issue START(R) before issuing READ commands.
     if (!transaction_active(controller) ||
-        controller->current_direction != I2C_DIR_READ) {
+        controller->current_direction != I2C_DIR_READ)
+    {
         set_error(controller);
         return I2C_ERR_INVALID_SEQUENCE;
     }
@@ -161,7 +167,9 @@ static int command_read(I2CController *controller)
     }
 
     controller->rxdata = value;
-    controller->status |= I2C_STATUS_RX_VALID; // signals firmware that RXDATA holds fresh data
+    // RX_VALID sticky flag: set to signal firmware data is ready in RXDATA.
+    // Firmware clears it via W1C (write-1-to-clear) in STATUS register.
+    controller->status |= I2C_STATUS_RX_VALID;
     set_done(controller);
     return I2C_OK;
 }
@@ -273,13 +281,17 @@ int i2c_endpoint_write_byte(I2CEndpoint *endpoint, uint8_t value)
         return I2C_ERR_INVALID_SEQUENCE;
     }
 
-    if (endpoint->expect_register_pointer) {
+    if (endpoint->expect_register_pointer) 
+    {
+        // FIRST byte after START(W) sets the register pointer, not data.
+        // e.g., value=0x02 means "go to register 0x02".
         endpoint->register_pointer        = value;
         endpoint->expect_register_pointer = false;
         return I2C_OK;
     }
 
-    // Subsequent bytes write data; pointer auto-increments (wraps at 256).
+    // SUBSEQUENT bytes write data to current register, then auto-increment.
+    // e.g., 0x02 → 0x03 → 0x04 ...
     endpoint->registers[endpoint->register_pointer] = value;
     endpoint->register_pointer = (uint8_t)(endpoint->register_pointer + 1u);
     return I2C_OK;
@@ -295,7 +307,8 @@ int i2c_endpoint_read_byte(I2CEndpoint *endpoint, uint8_t *value)
         return I2C_ERR_INVALID_SEQUENCE;
     }
 
-    // Pointer auto-increments after each read (wraps at 256).
+    // Read from current register pointer, then auto-increment for next read.
+    // e.g., pointer at 0x02: read registers[0x02], increment to 0x03.
     *value = endpoint->registers[endpoint->register_pointer];
     endpoint->register_pointer = (uint8_t)(endpoint->register_pointer + 1u);
     return I2C_OK;
@@ -464,10 +477,10 @@ int i2c_controller_mmio_write(I2CController *controller, uint32_t offset, uint32
         return I2C_OK;
 
     case I2C_REG_STATUS:
-        // Write-one-to-clear (W1C): a 1 bit in the written value clears the
-        // corresponding sticky bit. BUSY is excluded — hardware controls it.
-        controller->status &= ~(value &
-            (I2C_STATUS_DONE | I2C_STATUS_ERROR | I2C_STATUS_RX_VALID));
+        // Write-one-to-clear (W1C): writing 1 to a sticky bit clears it.
+        // e.g., write 0x04 (ERROR bit) to clear error without touching DONE.
+        // BUSY bit is excluded (hardware-controlled).
+        controller->status &= ~(value & (I2C_STATUS_DONE | I2C_STATUS_ERROR | I2C_STATUS_RX_VALID));
         return I2C_OK;
 
     case I2C_REG_TXDATA:

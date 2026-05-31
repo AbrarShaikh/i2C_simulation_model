@@ -161,10 +161,9 @@ typedef struct I2CController {
     I2CEndpoint *selected_endpoint; // Endpoint chosen by the last START; NULL when idle.
 } I2CController;
 
-/***********************/
-/* Endpoint/slave API. */
-/***********************/
-
+                                /***********************/
+                                /* Endpoint/slave API. */
+                                /***********************/
 /**
  * Initialise an endpoint to a known state.
  *
@@ -251,10 +250,9 @@ uint8_t i2c_endpoint_peek_register(const I2CEndpoint *endpoint, uint8_t offset);
  */
 void i2c_endpoint_poke_register(I2CEndpoint *endpoint, uint8_t offset, uint8_t value);
 
-/************/
-/* Bus API. */
-/************/
-
+                                /************/
+                                /* Bus API. */
+                                /************/
 /**
  * Initialise a bus to an empty state (zero endpoints).
  *
@@ -292,10 +290,9 @@ I2CEndpoint *i2c_bus_find(I2CBus *bus, uint8_t seven_bit_address);
  */
 size_t i2c_bus_endpoint_count(const I2CBus *bus);
 
-/**************************/
-/* Controller/master API. */
-/**************************/
-
+                            /**************************/
+                            /* Controller/master API. */
+                            /**************************/
 /**
  * Initialise a controller and associate it with a bus.
  * Calls i2c_controller_reset() internally.
@@ -352,8 +349,10 @@ int i2c_controller_mmio_write(I2CController *controller, uint32_t offset, uint32
  */
 I2CControllerState i2c_controller_state(const I2CController *controller);
 
-/* Utility helpers for tests/demo/logging. */
 
+/*******************************************/
+/* Utility helpers for tests/demo/logging. */
+/*******************************************/
 /**
  * Convert an I2CControllerState to a human-readable string.
  *
