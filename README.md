@@ -129,115 +129,6 @@ flowchart TD
 
 ---
 
-### 2. Write transaction flow
-
-Firmware writes a value into a slave register.
-
-```mermaid
-flowchart TD
-    A([Start]) --> B["Write TXDATA = addr<<1 | 0\n(write direction)"]
-    B --> C["Write CMD = START"]
-    C --> D{Slave found?}
-    D -->|No| ERR["STATUS.ERROR set\nreturn ERR_NO_SLAVE"]
-    D -->|Yes| E["Write TXDATA = register offset"]
-    E --> F["Write CMD = WRITE\n(sets register pointer)"]
-    F --> G["Write TXDATA = data value"]
-    G --> H["Write CMD = WRITE\n(stores data)"]
-    H --> I["Write CMD = STOP"]
-    I --> J["STATUS.DONE set\ncontroller → IDLE"]
-    J --> K([End])
-    ERR --> K
-```
-
----
-
-### 3. Read transaction flow
-
-Firmware reads a value from a slave register using a repeated START.
-
-```mermaid
-flowchart TD
-    A([Start]) --> B["Write TXDATA = addr<<1 | 0\n(write direction)"]
-    B --> C["Write CMD = START"]
-    C --> D{Slave found?}
-    D -->|No| ERR["STATUS.ERROR set\nreturn ERR_NO_SLAVE"]
-    D -->|Yes| E["Write TXDATA = register offset"]
-    E --> F["Write CMD = WRITE\n(sets register pointer)"]
-    F --> G["Write TXDATA = addr<<1 | 1\n(read direction)"]
-    G --> H["Write CMD = START\n(repeated START)"]
-    H --> I["Write CMD = READ"]
-    I --> J["Endpoint returns byte\nfrom register pointer"]
-    J --> K["RXDATA = byte\nSTATUS.RX_VALID set"]
-    K --> L["Read RXDATA"]
-    L --> M["Write CMD = STOP"]
-    M --> N["STATUS.DONE set\ncontroller → IDLE"]
-    N --> O([End])
-    ERR --> O
-```
-
----
-
-### 4. Controller state machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> IDLE
-
-    IDLE --> START : CMD = START
-    START --> SEND_ADDR : address lookup
-    SEND_ADDR --> TRANSFER : slave found (ACK)
-    SEND_ADDR --> ERROR : no slave (NACK)
-
-    TRANSFER --> TRANSFER : CMD = READ or WRITE
-    TRANSFER --> START : CMD = START (repeated START)
-    TRANSFER --> STOP : CMD = STOP
-    STOP --> IDLE : transaction complete
-
-    IDLE --> ERROR : CMD = STOP / READ / WRITE\n(no active transaction)
-    TRANSFER --> ERROR : direction mismatch\nor endpoint error
-    ERROR --> IDLE : firmware W1C STATUS.ERROR\nthen CMD = START (success)
-```
-
----
-
-### 5. CMD register dispatch flow
-
-```mermaid
-flowchart TD
-    A(["MMIO write to CMD"]) --> B["clear_transient_status\n(DONE + RX_VALID)"]
-    B --> C{ENABLE bit set?}
-    C -->|No| ERR1["set_error()\nreturn ERR_DISABLED"]
-    C -->|Yes| D{Command value}
-    D -->|START| E["command_start()"]
-    D -->|STOP| F["command_stop()"]
-    D -->|WRITE| G["command_write()"]
-    D -->|READ| H["command_read()"]
-    D -->|unknown| ERR2["set_error()\nreturn ERR_INVALID_COMMAND"]
-    E & F & G & H --> R{Result OK?}
-    R -->|Yes| DONE["set_done()\nSTATUS.DONE = 1"]
-    R -->|No| ERRX["set_error()\nSTATUS.ERROR = 1"]
-```
-
----
-
-### 6. Error recovery flow
-
-```mermaid
-flowchart TD
-    A(["Command fails"]) --> B["STATUS.ERROR set\nSTATUS.DONE set\ncontroller → ERROR state"]
-    B --> C["Firmware reads STATUS"]
-    C --> D["Firmware writes STATUS with\nERROR|DONE bits set\n(W1C — clears those bits)"]
-    D --> E["Firmware sets up TXDATA\nwith valid slave address"]
-    E --> F["Firmware writes CMD = START"]
-    F --> G{Slave found?}
-    G -->|Yes| H["set_done()\nERROR cleared\ncontroller → TRANSFER"]
-    G -->|No| I["set_error() again\nremains in ERROR"]
-```
-
----
-
-
-
 ```bash
 make test
 make demo
@@ -445,6 +336,103 @@ ERROR
 `SEND_ADDR` is a transient state in this transaction-level model. It is assigned inside the START command while resolving the address, then the model immediately transitions to `TRANSFER` if a matching endpoint is found. It is kept in the enum to document the natural hardware state-machine step and to make future cycle-accurate expansion easier.
 
 `STOP` is valid only while a transaction is active. A STOP from `IDLE` or `ERROR` is treated as an invalid sequence and sets `ERROR`; this avoids hiding firmware sequencing bugs.
+
+### 2. Write transaction flow
+
+Firmware writes a value into a slave register.
+
+```mermaid
+flowchart TD
+    A([Start]) --> B["Write TXDATA = addr<<1 | 0\n(write direction)"]
+    B --> C["Write CMD = START"]
+    C --> D{Slave found?}
+    D -->|No| ERR["STATUS.ERROR set\nreturn ERR_NO_SLAVE"]
+    D -->|Yes| E["Write TXDATA = register offset"]
+    E --> F["Write CMD = WRITE\n(sets register pointer)"]
+    F --> G["Write TXDATA = data value"]
+    G --> H["Write CMD = WRITE\n(stores data)"]
+    H --> I["Write CMD = STOP"]
+    I --> J["STATUS.DONE set\ncontroller → IDLE"]
+    J --> K([End])
+    ERR --> K
+```
+
+### 3. Read transaction flow
+
+Firmware reads a value from a slave register using a repeated START.
+
+```mermaid
+flowchart TD
+    A([Start]) --> B["Write TXDATA = addr<<1 | 0\n(write direction)"]
+    B --> C["Write CMD = START"]
+    C --> D{Slave found?}
+    D -->|No| ERR["STATUS.ERROR set\nreturn ERR_NO_SLAVE"]
+    D -->|Yes| E["Write TXDATA = register offset"]
+    E --> F["Write CMD = WRITE\n(sets register pointer)"]
+    F --> G["Write TXDATA = addr<<1 | 1\n(read direction)"]
+    G --> H["Write CMD = START\n(repeated START)"]
+    H --> I["Write CMD = READ"]
+    I --> J["Endpoint returns byte\nfrom register pointer"]
+    J --> K["RXDATA = byte\nSTATUS.RX_VALID set"]
+    K --> L["Read RXDATA"]
+    L --> M["Write CMD = STOP"]
+    M --> N["STATUS.DONE set\ncontroller → IDLE"]
+    N --> O([End])
+    ERR --> O
+```
+
+### 4. Controller state machine (Mermaid)
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+
+    IDLE --> START : CMD = START
+    START --> SEND_ADDR : address lookup
+    SEND_ADDR --> TRANSFER : slave found (ACK)
+    SEND_ADDR --> ERROR : no slave (NACK)
+
+    TRANSFER --> TRANSFER : CMD = READ or WRITE
+    TRANSFER --> START : CMD = START (repeated START)
+    TRANSFER --> STOP : CMD = STOP
+    STOP --> IDLE : transaction complete
+
+    IDLE --> ERROR : CMD = STOP / READ / WRITE\n(no active transaction)
+    TRANSFER --> ERROR : direction mismatch\nor endpoint error
+    ERROR --> IDLE : firmware W1C STATUS.ERROR\nthen CMD = START (success)
+```
+
+### 5. CMD register dispatch flow
+
+```mermaid
+flowchart TD
+    A(["MMIO write to CMD"]) --> B["clear_transient_status\n(DONE + RX_VALID)"]
+    B --> C{ENABLE bit set?}
+    C -->|No| ERR1["set_error()\nreturn ERR_DISABLED"]
+    C -->|Yes| D{Command value}
+    D -->|START| E["command_start()"]
+    D -->|STOP| F["command_stop()"]
+    D -->|WRITE| G["command_write()"]
+    D -->|READ| H["command_read()"]
+    D -->|unknown| ERR2["set_error()\nreturn ERR_INVALID_COMMAND"]
+    E & F & G & H --> R{Result OK?}
+    R -->|Yes| DONE["set_done()\nSTATUS.DONE = 1"]
+    R -->|No| ERRX["set_error()\nSTATUS.ERROR = 1"]
+```
+
+### 6. Error recovery flow
+
+```mermaid
+flowchart TD
+    A(["Command fails"]) --> B["STATUS.ERROR set\nSTATUS.DONE set\ncontroller → ERROR state"]
+    B --> C["Firmware reads STATUS"]
+    C --> D["Firmware writes STATUS with\nERROR|DONE bits set\n(W1C — clears those bits)"]
+    D --> E["Firmware sets up TXDATA\nwith valid slave address"]
+    E --> F["Firmware writes CMD = START"]
+    F --> G{Slave found?}
+    G -->|Yes| H["set_done()\nERROR cleared\ncontroller → TRANSFER"]
+    G -->|No| I["set_error() again\nremains in ERROR"]
+```
 
 ---
 
