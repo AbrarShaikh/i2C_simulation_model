@@ -1,6 +1,16 @@
 # Simplified I2C Controller and Endpoint Device Model in C
 
 ---
+This is implementation of a simplified I2C controller and endpoint device model in C. It provides a transaction-level simulation of I2C communication, focusing on the software-visible behavior of the controller and devices rather than electrical waveform accuracy.
+The model includes:
+- I2C Controller / Master exposed through memory-mapped registers
+- One or more I2C Endpoint Devices / Slaves
+- Simple I2C bus abstraction that routes transactions by 7-bit address
+- Transaction-level model; no SDA/SCL waveform simulation
+
+The implementation focuses on **system modelling**, **peripheral modelling**, and **register interface design**.
+
+---
 
 ## Introduction — How I2C Works
 
@@ -93,16 +103,6 @@ register-pointer convention, error reporting) without simulating SDA/SCL signals
 
 ---
 
-This is implementation of a simplified I2C controller and endpoint device model in C. It provides a transaction-level simulation of I2C communication, focusing on the software-visible behavior of the controller and devices rather than electrical waveform accuracy.
-The model includes:
-- I2C Controller / Master exposed through memory-mapped registers
-- One or more I2C Endpoint Devices / Slaves
-- Simple I2C bus abstraction that routes transactions by 7-bit address
-- Transaction-level model; no SDA/SCL waveform simulation
-
-The implementation focuses on **system modelling**, **peripheral modelling**, and **register interface design**.
-
----
 
 ## Flowcharts
 
