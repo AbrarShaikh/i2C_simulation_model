@@ -231,7 +231,7 @@ void i2c_endpoint_reset(I2CEndpoint *endpoint)
 
     memset(endpoint->registers, 0, sizeof(endpoint->registers));
 
-    // Required register map (assignment spec).
+    // Required register map (as per spec).
     endpoint->registers[0x00u] = endpoint->device_id; // Device ID
     endpoint->registers[0x01u] = 0x00u;               // Status
     endpoint->registers[0x02u] = 0x00u;               // Data

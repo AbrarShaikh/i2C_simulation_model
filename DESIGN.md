@@ -44,8 +44,8 @@ These exclusions are deliberate and documented. See §10 for extension paths.
 
 ## 2. Requirements
 
-| Assignment Requirement       | Implementation                                              |
-|------------------------------|-------------------------------------------------------------|
+| Requirement                  | Implementation                                             |
+|------------------------------|------------------------------------------------------------|
 | MMIO controller              | `I2CController` with CONTROL, STATUS, TXDATA, RXDATA, CMD  |
 | START/STOP/WRITE/READ        | Implemented through CMD register                           |
 | 7-bit addressing             | Address decoded from `TXDATA[7:1]` during START            |
@@ -54,7 +54,7 @@ These exclusions are deliberate and documented. See §10 for extension paths.
 | Endpoint address             | `I2CEndpoint.address` (7-bit, normalized at init)          |
 | Endpoint register map        | 256-byte register array with Device ID, Status, Data       |
 | Bus abstraction              | `I2CBus` routes transactions by endpoint address           |
-| Multiple slaves              | Up to 8 endpoints (`I2C_MAX_ENDPOINTS`)                   |
+| Multiple slaves              | Up to 8 endpoints (`I2C_MAX_ENDPOINTS`)                    |
 | Transaction-level model      | No SDA/SCL waveform, no clock stretching                   |
 
 ---
