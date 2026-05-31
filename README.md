@@ -337,7 +337,8 @@ ERROR
 
 `STOP` is valid only while a transaction is active. A STOP from `IDLE` or `ERROR` is treated as an invalid sequence and sets `ERROR`; this avoids hiding firmware sequencing bugs.
 
-### 2. Write transaction flow
+## Flowcharts
+### 1. Write transaction flow
 
 Firmware writes a value into a slave register.
 
@@ -357,7 +358,7 @@ flowchart TD
     ERR --> K
 ```
 
-### 3. Read transaction flow
+### 2. Read transaction flow
 
 Firmware reads a value from a slave register using a repeated START.
 
@@ -381,7 +382,7 @@ flowchart TD
     ERR --> O
 ```
 
-### 4. Controller state machine (Mermaid)
+### 3. Controller state machine (Mermaid)
 
 ```mermaid
 stateDiagram-v2
@@ -402,7 +403,7 @@ stateDiagram-v2
     ERROR --> IDLE : firmware W1C STATUS.ERROR\nthen CMD = START (success)
 ```
 
-### 5. CMD register dispatch flow
+### 4. CMD register dispatch flow
 
 ```mermaid
 flowchart TD
@@ -420,7 +421,7 @@ flowchart TD
     R -->|No| ERRX["set_error()\nSTATUS.ERROR = 1"]
 ```
 
-### 6. Error recovery flow
+### 5. Error recovery flow
 
 ```mermaid
 flowchart TD
@@ -454,31 +455,6 @@ flowchart TD
 9. CMD    = STOP
 ```
 
-Equivalent C helper:
-
-```c
-static uint8_t i2c_read_register(I2CController *controller,
-                                 uint8_t slave_addr,
-                                 uint8_t reg)
-{
-    uint32_t value = 0;
-
-    i2c_controller_mmio_write(controller, I2C_REG_TXDATA, slave_addr << 1);
-    i2c_controller_mmio_write(controller, I2C_REG_CMD, I2C_CMD_START);
-
-    i2c_controller_mmio_write(controller, I2C_REG_TXDATA, reg);
-    i2c_controller_mmio_write(controller, I2C_REG_CMD, I2C_CMD_WRITE);
-
-    i2c_controller_mmio_write(controller, I2C_REG_TXDATA, (slave_addr << 1) | 1);
-    i2c_controller_mmio_write(controller, I2C_REG_CMD, I2C_CMD_START);
-
-    i2c_controller_mmio_write(controller, I2C_REG_CMD, I2C_CMD_READ);
-    i2c_controller_mmio_read(controller, I2C_REG_RXDATA, &value);
-
-    i2c_controller_mmio_write(controller, I2C_REG_CMD, I2C_CMD_STOP);
-    return (uint8_t)value;
-}
-```
 
 ---
 
@@ -512,20 +488,3 @@ All I2C C model tests passed.
 ```
 
 ---
-
-## 12. What to explain in a review
-
-A concise design explanation:
-
-> I implemented the controller as a memory-mapped peripheral with CONTROL, STATUS, TXDATA, RXDATA, and CMD registers. Software starts transactions by writing an address byte into TXDATA and writing START to CMD. The bus abstraction decodes the 7-bit address and routes the transaction to the matching endpoint. The endpoint contains a 256-byte register map with Device ID, Status, and Data registers. The model is transaction-level rather than electrical-level, so it focuses on programmer-visible behavior: command sequencing, address matching, state transitions, status bits, error reporting, endpoint register access, and bus routing.
-
-Possible improvements if more time were available:
-
-- Add interrupt register and IRQ output
-- Add FIFO support
-- Add 10-bit addressing
-- Add read-only/write-only access permissions for endpoint registers
-- Add NACK cause reporting or an MMIO-visible error-cause register
-- Add clock stretching support
-- Add timing model for command latency
-- Add trace logging hooks for debugging
